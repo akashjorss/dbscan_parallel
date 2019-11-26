@@ -9,6 +9,7 @@ from functools import reduce
 from itertools import repeat
 from pyspark import SparkContext, SparkConf
 from time import time
+from sklearn import datasets
 
 def Partition_Data(raw_data, num_partitions):
     '''args:
@@ -149,65 +150,88 @@ def Merge_Partitions(data1, data2):
 
 if __name__ == "__main__":
     
-    #Generate sample data
-    from sklearn import datasets
-    np.random.seed(0)
-    n_samples = 10000
-    noisy_moons = datasets.make_moons(n_samples=n_samples, noise=.05)
-    moons,_ = noisy_moons   
-#    plt.scatter(moons[:, 0], moons[:, 1])
-#    plt.show()  
-    MIN_PTS, EPS = 50, 0.1
-#    
-    #Local DBScan
-    num_partitions = 1
-    start = time()
-    db = Local_DBSCAN(moons)
-    stop = time()
-    print("Time taken by regular DB Scan: ", stop - start)
-#    Plot_Clusters(moons, db)
-    
-    
-    
-    for i in range(2, 9):
-        num_partitions = i
-        conf = SparkConf().setAppName("S_DBSCAN").setMaster("local[*]")
-        sc = SparkContext(conf = conf)
+    SPEEDUPS = []
+    TIME = []
+    for i in range(3):
+        #Generate sample data    
+        np.random.seed(0)
+        n_samples = 1000*(10**i)
+        print("No. of data points: ", n_samples)
+        noisy_moons = datasets.make_moons(n_samples=n_samples, noise=.05)
+        moons,_ = noisy_moons   
+    #    plt.scatter(moons[:, 0], moons[:, 1])
+    #    plt.show()  
+        MIN_PTS, EPS = 5*n_samples/1000, 0.1
+    #    
+        #Local DBScan
+        num_partitions = 1
         start = time()
-        partitioned_data = Partition_Data(moons, num_partitions)
-        
-        partition_rdd = sc.parallelize(partitioned_data)
-        #plot partitioned data
-        #    plt.scatter(partitioned_data[1][:,0], partitioned_data[1][:,1])
-        #    plt.show()
-        db_labels = partition_rdd.map(Local_DBSCAN).collect()
-        data_and_labels = []
-        for i in range(num_partitions):
-            data_and_labels.append((partitioned_data[i], db_labels[i]))
-        
-        data_and_labels_rdd = sc.parallelize(data_and_labels)
-        centroids_rdd = data_and_labels_rdd.map(Calculate_Centroids)
-        centroids = centroids_rdd.collect()
-        #Find the minimum distance b/w clusters within each partition
-        min_d = centroids_rdd.map(Find_min_d).collect()
-        
-        #Find the global minimum distance
-        min_D = np.min(min_d)
-        #set the maximum distance for clusters to merge
-        SIGMA = min_D/10
-        
-        all_data = []
-        for i in range(num_partitions):
-            all_data.append((partitioned_data[i], centroids[i], db_labels[i]))
-        
-        all_data_rdd = sc.parallelize(all_data)
-        result = all_data_rdd.reduce(Merge_Partitions)
+        db = Local_DBSCAN(moons)
         stop = time()
-        print("Time taken by parallel DBScan with ", num_partitions,\
-              " partitions : ", stop - start)
+        t_old = stop - start
+        print("Time taken by regular DB Scan: ", t_old)
+    #    Plot_Clusters(moons, db)
         
-#        Plot_Clusters(result[0], result[2])
-        sc.stop()
+        
+        speedup = [1]
+        time = [t_old]
+        for i in range(3, 6, 2):
+            num_partitions = i
+            MIN_PTS, EPS = 5*n_samples/1000, 0.1
+            conf = SparkConf().setAppName("S_DBSCAN").setMaster("local[*]")
+            sc = SparkContext(conf = conf)
+            start = time()
+            partitioned_data = Partition_Data(moons, num_partitions)
+            
+            partition_rdd = sc.parallelize(partitioned_data)
+            #plot partitioned data
+            #    plt.scatter(partitioned_data[1][:,0], partitioned_data[1][:,1])
+            #    plt.show()
+            db_labels = partition_rdd.map(Local_DBSCAN).collect()
+            data_and_labels = []
+            for i in range(num_partitions):
+                data_and_labels.append((partitioned_data[i], db_labels[i]))
+            
+            data_and_labels_rdd = sc.parallelize(data_and_labels)
+            centroids_rdd = data_and_labels_rdd.map(Calculate_Centroids)
+            centroids = centroids_rdd.collect()
+            #Find the minimum distance b/w clusters within each partition
+            min_d = centroids_rdd.map(Find_min_d).collect()
+            
+            #Find the global minimum distance
+            min_D = np.min(min_d)
+            #set the maximum distance for clusters to merge
+            SIGMA = min_D/10
+            
+            all_data = []
+            for i in range(num_partitions):
+                all_data.append((partitioned_data[i], centroids[i], db_labels[i]))
+            
+            all_data_rdd = sc.parallelize(all_data)
+            result = all_data_rdd.reduce(Merge_Partitions)
+            stop = time()
+            t_new = stop - start
+            print("Time taken by parallel DBScan with ", num_partitions,\
+                  " partitions : ", t_new)
+            speedup.append(t_old/t_new)
+            time.append(t_new)
+    #        Plot_Clusters(result[0], result[2])
+            sc.stop()
+        SPEEDUPS.append(speedup)
+        TIME.append(time)
+        
+    #create line chart for different datasets
+#    n = 1000
+#    for speedup in SPEEDUPS:
+#        plt.plot(np.arange(1,9), speedup, label="Data for "+ str(n)+ " samples")
+#        n = n*10
+#        
+#    plt.xlabel("No. of cores")
+#    plt.ylabel("Speedup")
+#    plt.title("Performance DBSCAN")
+#    plt.legend()
+#    plt.show()
     
+    #create bar chart for different datasets
     
     
