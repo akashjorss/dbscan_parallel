@@ -174,7 +174,7 @@ if __name__ == "__main__":
         
         
         speedup = [1]
-        time = [t_old]
+        time_list = [t_old]
         for i in range(3, 6, 2):
             num_partitions = i
             MIN_PTS, EPS = 5*n_samples/1000, 0.1
@@ -214,11 +214,11 @@ if __name__ == "__main__":
             print("Time taken by parallel DBScan with ", num_partitions,\
                   " partitions : ", t_new)
             speedup.append(t_old/t_new)
-            time.append(t_new)
+            time_list.append(t_new)
     #        Plot_Clusters(result[0], result[2])
             sc.stop()
         SPEEDUPS.append(speedup)
-        TIME.append(time)
+        TIME.append(time_list)
         
     #create line chart for different datasets
 #    n = 1000
