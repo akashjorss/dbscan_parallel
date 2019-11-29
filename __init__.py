@@ -236,18 +236,6 @@ if __name__ == "__main__":
     SPEEDUPS.append(speedup)
     TIME.append(time_list)
         
-    #create line chart for different datasets
-#    n = 1000
-#    for speedup in SPEEDUPS:
-#        plt.plot(np.arange(1,9), speedup, label="Data for "+ str(n)+ " samples")
-#        n = n*10
-#        
-#    plt.xlabel("No. of cores")
-#    plt.ylabel("Speedup")
-#    plt.title("Performance DBSCAN")
-#    plt.legend()
-#    plt.show()
-    
-    #create bar chart for different datasets
+
     
     
